@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+.Python
+.env
+venv
+
+# VS Code
+.vscode/
+
+# Node.js
+frontend/node_modules/
+frontend/.vite/
+frontend/.vite-temp/
+
+# Vite/React build output
+frontend/dist/
+
+# PyInstaller output
+build/
+dist/
+
+# Icon build artifacts (keep .icns, ignore working folder)
+MyIcon.iconset/
+
+# Logs or temp
+*.log
