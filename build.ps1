@@ -15,7 +15,7 @@ Copy-Item -Recurse -Force frontend/dist/* backend/static/
 Write-Host "📦 Bundling backend with PyInstaller..."
 Push-Location backend
 $env:PATH = "$PWD\..\venv\Scripts;$env:PATH"
-pyinstaller main.py `
+..\venv\Scripts\pyinstaller.exe main.py `
   --onefile `
   --name seed-guard `
   --add-data "static;frontend/dist" `
