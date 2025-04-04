@@ -9,14 +9,14 @@ on:
       - main
 
 jobs:
-  build-and-release:
-    runs-on: macos-latest
-
+  precheck:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      tag_exists: ${{ steps.check_tag.outputs.tag_exists }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
     - name: Get version
       id: get_version
@@ -27,20 +27,29 @@ jobs:
       run: |
         VERSION="v$(cat VERSION)"
         if git rev-parse "$VERSION" >/dev/null 2>&1; then
-          echo "Tag $VERSION already exists. Exiting."
           echo "tag_exists=true" >> $GITHUB_OUTPUT
         else
           echo "tag_exists=false" >> $GITHUB_OUTPUT
         fi
 
+  build-and-release:
+    runs-on: macos-latest
+    needs: precheck
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
     - name: Stop if tag already exists
-      if: steps.check_tag.outputs.tag_exists == 'true'
+      if: needs.precheck.outputs.tag_exists == 'true'
       run: |
         echo "Tag already exists. Skipping build and release."
         exit 0
 
     - name: Create and push tag
-      if: steps.check_tag.outputs.tag_exists == 'false'
+      if: needs.precheck.outputs.tag_exists == 'false'
       env:
         PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
       run: |
@@ -51,19 +60,19 @@ jobs:
         git push https://x-access-token:${PERSONAL_ACCESS_TOKEN}@github.com/${{ github.repository }} "$VERSION"
 
     - name: Set up Python
-      if: steps.check_tag.outputs.tag_exists == 'false'
+      if: needs.precheck.outputs.tag_exists == 'false'
       uses: actions/setup-python@v5
       with:
         python-version: '3.13.1'
 
     - name: Set up Node.js
-      if: steps.check_tag.outputs.tag_exists == 'false'
+      if: needs.precheck.outputs.tag_exists == 'false'
       uses: actions/setup-node@v4
       with:
         node-version-file: '.nvmrc'
 
     - name: Install dependencies
-      if: steps.check_tag.outputs.tag_exists == 'false'
+      if: needs.precheck.outputs.tag_exists == 'false'
       run: |
         python -m venv venv
         source venv/bin/activate
@@ -71,32 +80,32 @@ jobs:
         pip install -r requirements.txt
 
     - name: Make build script executable
-      if: steps.check_tag.outputs.tag_exists == 'false'
+      if: needs.precheck.outputs.tag_exists == 'false'
       run: chmod +x build.sh
 
     - name: Build the app
-      if: steps.check_tag.outputs.tag_exists == 'false'
+      if: needs.precheck.outputs.tag_exists == 'false'
       run: ./build.sh
 
     - name: Zip the .app bundle with version
-      if: steps.check_tag.outputs.tag_exists == 'false'
+      if: needs.precheck.outputs.tag_exists == 'false'
       run: |
         cd dist
-        zip -r seed-guard-macos-${{ steps.get_version.outputs.version }}.zip seed-guard.app
+        zip -r seed-guard-macos-${{ needs.precheck.outputs.version }}.zip seed-guard.app
 
     - name: Upload to GitHub Release
-      if: steps.check_tag.outputs.tag_exists == 'false'
+      if: needs.precheck.outputs.tag_exists == 'false'
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ steps.get_version.outputs.version }}
-        files: dist/seed-guard-macos-${{ steps.get_version.outputs.version }}.zip
+        tag_name: ${{ needs.precheck.outputs.version }}
+        files: dist/seed-guard-macos-${{ needs.precheck.outputs.version }}.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows:
     runs-on: windows-latest
-    needs: build-and-release
-    if: needs.build-and-release.outputs.tag_exists == 'false'
+    needs: precheck
+    if: needs.precheck.outputs.tag_exists == 'false'
 
     steps:
     - name: Checkout code
@@ -123,12 +132,12 @@ jobs:
       run: ./build.ps1
 
     - name: Zip Windows executable
-      run: Compress-Archive -Path dist\seed-guard.exe -DestinationPath dist\seed-guard-windows-${{ needs.build-and-release.outputs.version }}.zip
+      run: Compress-Archive -Path dist\seed-guard.exe -DestinationPath dist\seed-guard-windows-${{ needs.precheck.outputs.version }}.zip
 
     - name: Upload Windows build to GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ needs.build-and-release.outputs.version }}
-        files: dist/seed-guard-windows-${{ needs.build-and-release.outputs.version }}.zip
+        tag_name: ${{ needs.precheck.outputs.version }}
+        files: dist/seed-guard-windows-${{ needs.precheck.outputs.version }}.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
