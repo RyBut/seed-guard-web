@@ -32,4 +32,3 @@ cp backend/dist/seed-guard dist/
 rm -rf backend/dist
 
 echo "✅ Build complete!"
-echo "Run it using: ./dist/seed-guard"

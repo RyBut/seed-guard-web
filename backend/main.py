@@ -74,7 +74,8 @@ def decode_seed(data: DecodeRequest):
 
 @app.post("/shutdown")
 def shutdown():
-    os.kill(os.getpid(), signal.SIGINT)
+    sig = signal.CTRL_BREAK_EVENT if platform.system() == "Windows" else signal.SIGINT
+    os.kill(os.getpid(), sig)
     return {"message": "Shutting down"}
 
 if not IS_DEV:
@@ -103,8 +104,12 @@ if __name__ == "__main__":
     def open_browser():
         try:
             url = "http://localhost:8000"
-            if platform.system() == "Darwin":  # macOS
+            system = platform.system()
+
+            if system == "Darwin":  # macOS
                 subprocess.Popen(["open", url])
+            elif system == "Windows":
+                os.startfile(url)
             else:
                 webbrowser.open(url)
         except Exception as e:

@@ -1,0 +1,31 @@
+# Exit on error
+$ErrorActionPreference = "Stop"
+
+Write-Host "🔧 Building frontend..."
+Push-Location frontend
+npm install
+npm run build
+Pop-Location
+
+Write-Host "📁 Copying frontend build into backend/static..."
+Remove-Item -Recurse -Force backend/static -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path backend/static
+Copy-Item -Recurse -Force frontend/dist/* backend/static/
+
+Write-Host "📦 Bundling backend with PyInstaller..."
+Push-Location backend
+$env:PATH = "$PWD\..\venv\Scripts;$env:PATH"
+pyinstaller main.py `
+  --onefile `
+  --name seed-guard `
+  --add-data "static;frontend/dist" `
+  --windowed
+Pop-Location
+
+Write-Host "🧹 Preparing output..."
+Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path dist
+Copy-Item backend\dist\seed-guard.exe dist\
+Remove-Item -Recurse -Force backend\dist -ErrorAction SilentlyContinue
+
+Write-Host "✅ Build complete!"

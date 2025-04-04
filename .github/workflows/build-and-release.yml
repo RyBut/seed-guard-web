@@ -92,3 +92,43 @@ jobs:
         files: dist/seed-guard-macos-${{ steps.get_version.outputs.version }}.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    runs-on: windows-latest
+    needs: build-and-release
+    if: needs.build-and-release.outputs.tag_exists == 'false'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13.1'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: '.nvmrc'
+
+    - name: Install dependencies
+      run: |
+        python -m venv venv
+        .\venv\Scripts\activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Windows build script
+      run: ./build.ps1
+
+    - name: Zip Windows executable
+      run: Compress-Archive -Path dist\seed-guard.exe -DestinationPath dist\seed-guard-windows-${{ needs.build-and-release.outputs.version }}.zip
+
+    - name: Upload Windows build to GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ needs.build-and-release.outputs.version }}
+        files: dist/seed-guard-windows-${{ needs.build-and-release.outputs.version }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
