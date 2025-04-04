@@ -1,0 +1,94 @@
+name: Tag, Build, and Release macOS App
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get version
+      id: get_version
+      run: echo "version=v$(cat VERSION)" >> $GITHUB_OUTPUT
+
+    - name: Check if tag exists
+      id: check_tag
+      run: |
+        VERSION="v$(cat VERSION)"
+        if git rev-parse "$VERSION" >/dev/null 2>&1; then
+          echo "Tag $VERSION already exists. Exiting."
+          echo "tag_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "tag_exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Stop if tag already exists
+      if: steps.check_tag.outputs.tag_exists == 'true'
+      run: |
+        echo "Tag already exists. Skipping build and release."
+        exit 0
+
+    - name: Create and push tag
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      env:
+        PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      run: |
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+        VERSION="v$(cat VERSION)"
+        git tag "$VERSION"
+        git push https://x-access-token:${PERSONAL_ACCESS_TOKEN}@github.com/${{ github.repository }} "$VERSION"
+
+    - name: Set up Python
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13.1'
+
+    - name: Set up Node.js
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: '.nvmrc'
+
+    - name: Install dependencies
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Make build script executable
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      run: chmod +x build.sh
+
+    - name: Build the app
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      run: ./build.sh
+
+    - name: Zip the .app bundle
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      run: |
+        cd dist
+        zip -r seed-guard-macos.zip seed-guard.app
+
+    - name: Upload to GitHub Release
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.get_version.outputs.version }}
+        files: dist/seed-guard-macos.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
