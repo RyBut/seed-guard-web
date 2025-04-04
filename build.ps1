@@ -7,6 +7,10 @@ npm install
 npm run build
 Pop-Location
 
+Write-Host "🐍 Activating virtual environment and installing PyInstaller..."
+. .\venv\Scripts\Activate.ps1
+pip install pyinstaller
+
 Write-Host "📁 Copying frontend build into backend/static..."
 Remove-Item -Recurse -Force backend/static -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path backend/static
@@ -15,7 +19,7 @@ Copy-Item -Recurse -Force frontend/dist/* backend/static/
 Write-Host "📦 Bundling backend with PyInstaller..."
 Push-Location backend
 $env:PATH = "$PWD\..\venv\Scripts;$env:PATH"
-..\venv\Scripts\pyinstaller.exe main.py `
+pyinstaller main.py `
   --onefile `
   --name seed-guard `
   --add-data "static;frontend/dist" `
