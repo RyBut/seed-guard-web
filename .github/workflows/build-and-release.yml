@@ -1,0 +1,138 @@
+name: Tag, Build, and Release App
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  precheck:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      tag_exists: ${{ steps.check_tag.outputs.tag_exists }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Fetch all tags
+      run: git fetch --tags
+
+    - name: Get version
+      id: get_version
+      run: echo "version=v$(cat VERSION)" >> $GITHUB_OUTPUT
+
+    - name: Check if tag exists
+      id: check_tag
+      run: |
+        VERSION="v$(cat VERSION)"
+        if git rev-parse "$VERSION" >/dev/null 2>&1; then
+          echo "tag_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "tag_exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create and push tag
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+        VERSION="v$(cat VERSION)"
+        git tag "$VERSION"
+        git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} "$VERSION"
+
+  build-macos:
+    runs-on: macos-latest
+    needs: precheck
+    if: needs.precheck.outputs.tag_exists == 'false'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13.1'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: '.nvmrc'
+
+    - name: Install dependencies
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Make build script executable
+      run: chmod +x build.sh
+
+    - name: Build the app
+      run: ./build.sh
+
+    - name: Zip the .app bundle with version
+      run: |
+        cd dist
+        zip -r seed-guard-macos-${{ needs.precheck.outputs.version }}.zip seed-guard.app
+
+    - name: Upload to GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ needs.precheck.outputs.version }}
+        files: dist/seed-guard-macos-${{ needs.precheck.outputs.version }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    runs-on: windows-latest
+    needs: precheck
+    if: needs.precheck.outputs.tag_exists == 'false'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13.1'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: '.nvmrc'
+
+    - name: Install dependencies
+      run: |
+        python -m venv venv
+        .\venv\Scripts\activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Windows build script
+      run: .\build.ps1
+
+    - name: Zip Windows executable
+      run: Compress-Archive -Path dist\seed-guard.exe -DestinationPath dist\seed-guard-windows-${{ needs.precheck.outputs.version }}.zip
+
+    - name: Upload Windows build to GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ needs.precheck.outputs.version }}
+        files: dist/seed-guard-windows-${{ needs.precheck.outputs.version }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
