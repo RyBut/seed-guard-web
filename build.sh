@@ -18,18 +18,12 @@ cd backend
 echo "📦 Bundling backend with PyInstaller..."
 pip install pyinstaller
 
-EXTRA_HIDDEN_IMPORTS=""
-if [[ "$CI" == "true" ]]; then
-  EXTRA_HIDDEN_IMPORTS="--hidden-import=fastapi --hidden-import=uvicorn --hidden-import=pydantic"
-fi
-
 pyinstaller main.py \
   --onefile \
   --name seed-guard \
   --add-data "static:frontend/dist" \
   --icon ../Seed-Guard.icns \
-  --windowed \
-  $EXTRA_HIDDEN_IMPORTS
+  --windowed
 
 cd ..
 mkdir -p dist
